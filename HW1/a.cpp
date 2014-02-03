@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
-#define MAXSIZE 10      /* maximum matrix size */
+#define MAXSIZE 10  /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
 
 #define MINMAX_ARRAY_SIZE 6 /* look at minMaxValues */
@@ -29,9 +29,22 @@
 #define MINROW 4
 #define MINCOL 5
 
-pthread_mutex_t mutex;    /* mutex lock for critical calculation section */
+pthread_mutex_t barrier;  /* mutex lock for the barrier */
+pthread_cond_t go;        /* condition variable for leaving */
 int numWorkers;           /* number of workers */
 int numArrived = 0;       /* number who have arrived */
+
+/* a reusable counter barrier */
+void Barrier() {
+    pthread_mutex_lock(&barrier);
+    numArrived++;
+    if (numArrived == numWorkers) {
+        numArrived = 0;
+        pthread_cond_broadcast(&go);
+    } else
+        pthread_cond_wait(&go, &barrier);
+    pthread_mutex_unlock(&barrier);
+}
 
 /* timer */
 double read_timer() {
@@ -49,8 +62,8 @@ double read_timer() {
 
 double start_time, end_time; /* start and end times */
 int size, stripSize;  /* assume size is multiple of numWorkers */
-int totalSum; /* total sum for the matrix */
-int minMaxValues[MINMAX_ARRAY_SIZE]; /* Storage for min and max values for the matrix */
+int sums[MAXWORKERS]; /* partial sums */
+int minMaxValues[MAXWORKERS][MINMAX_ARRAY_SIZE]; /* partial min and max values. (maxVal, maxRow, maxCol, minVal, minRow, minCol) */
 int matrix[MAXSIZE][MAXSIZE]; /* matrix */
 
 void *Worker(void *);
@@ -66,8 +79,9 @@ int main(int argc, char *argv[]) {
     pthread_attr_init(&attr);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
     
-    /* initialize mutex */
-    pthread_mutex_init(&mutex, NULL);
+    /* initialize mutex and condition variable */
+    pthread_mutex_init(&barrier, NULL);
+    pthread_cond_init(&go, NULL);
     
     /* read command line args if any */
     size = (argc > 1)? atoi(argv[1]) : MAXSIZE;
@@ -94,36 +108,19 @@ int main(int argc, char *argv[]) {
     }
 #endif
     
-    /* Initiating min and max values to the first value in the matrix.
-     If empty matrix than zero values */
-    bool isNotEmpty = size > 0;
-    minMaxValues[MAXVAL] = minMaxValues[MINVAL] = isNotEmpty ? matrix[0][0]: 0;
-    
-    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
-    minMaxValues[MAXROW] = minMaxValues[MAXCOL] = minMaxValues[MINROW] = minMaxValues[MINCOL] = isNotEmpty ? 0 : -1;
-    
     /* do the parallel work: create the workers */
     start_time = read_timer();
     for (l = 0; l < numWorkers; l++)
         pthread_create(&workerid[l], &attr, Worker, (void *) l);
-    for (l = 0; l < numWorkers; l++)
-        pthread_join (workerid[l], NULL);
-    
-    /* get end time */
-    end_time = read_timer();
-    /* print results */
-    printf("Maximum element value is %d at row/col position %d/%d\n", minMaxValues[MAXVAL], minMaxValues[MAXROW], minMaxValues[MAXCOL]);
-    printf("Minimum element value is %d at row/col position %d/%d\n", minMaxValues[MINVAL], minMaxValues[MINROW], minMaxValues[MINCOL]);
-    printf("The total is %d\n", totalSum);
-    printf("The execution time is %g sec\n", end_time - start_time);
     pthread_exit(NULL);
+    return 0;
 }
 
 /* Each worker sums the values in one strip of the matrix.
  After a barrier, worker(0) computes and prints the total */
 void *Worker(void *arg) {
     long myid = (long) arg;
-    int val, i, j, first, last;
+    int val, total, i, j, first, last;
     
 #ifdef DEBUG
     printf("worker %d (pthread id %d) has started\n", myid, pthread_self());
@@ -133,25 +130,63 @@ void *Worker(void *arg) {
     first = myid*stripSize;
     last = (myid == numWorkers - 1) ? (size - 1) : (first + stripSize - 1);
     
+    /* sum values in my strip */
+    total = 0;
+    
+    /* Initiating min and max values to the first value in the (sub) matrix.
+     If empty matrix than zero values */
+    bool isNotEmpty = size > 0;
+    int localMinMaxValues[MINMAX_ARRAY_SIZE]; /* maxVal, maxRow, maxCol, minVal, minRow, minCol */
+    localMinMaxValues[MAXVAL] = localMinMaxValues[MINVAL] = isNotEmpty ? matrix[first][0]: 0;
+    
+    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
+    localMinMaxValues[MAXROW] = localMinMaxValues[MAXCOL] = localMinMaxValues[MINROW] = localMinMaxValues[MINCOL] = isNotEmpty ? first : -1;
+    
     for (i = first; i <= last; i++)
         for (j = 0; j < size; j++) {
             val = matrix[i][j];
-            pthread_mutex_lock(&mutex);
-            totalSum += val;
+            total += val;
             /* Update the min, max and pos. Note that can use if-else like this
              since we initiate minVal and maxVal to the same value, there for
              both if-statements can never be true at the same time */
-            if(val < minMaxValues[MINVAL]) {
-                minMaxValues[MINVAL] = val;
-                minMaxValues[MINROW] = i;
-                minMaxValues[MINCOL] = j;
-            } else if(val > minMaxValues[MAXVAL]) {
-                minMaxValues[MAXVAL] = val;
-                minMaxValues[MAXROW] = i;
-                minMaxValues[MAXCOL] = j;
+            if(val < localMinMaxValues[MINVAL]) {
+                localMinMaxValues[MINVAL] = val;
+                localMinMaxValues[MINROW] = i;
+                localMinMaxValues[MINCOL] = j;
+            } else if(val > localMinMaxValues[MAXVAL]) {
+                localMinMaxValues[MAXVAL] = val;
+                localMinMaxValues[MAXROW] = i;
+                localMinMaxValues[MAXCOL] = j;
             }
-            pthread_mutex_unlock(&mutex);
         }
     
-    pthread_exit(NULL);
+    /* Save the local values for min and max */
+    for(int i = 0; i < MINMAX_ARRAY_SIZE; i++) {
+        minMaxValues[myid][i] = localMinMaxValues[i];
+    }
+    
+    sums[myid] = total;
+    Barrier();
+    if (myid == 0) {
+        total = 0;
+        int minIndex = 0;
+        int maxIndex = 0;
+        for (i = 0; i < numWorkers; i++) {
+            total += sums[i];
+            if(minMaxValues[i][MAXVAL] > minMaxValues[maxIndex][MAXVAL]) {
+                maxIndex = i;
+            }
+            if(minMaxValues[i][MINVAL] < minMaxValues[minIndex][MINVAL]) {
+                minIndex = i;
+            }
+        }
+        /* get end time */
+        end_time = read_timer();
+        /* print results */
+        printf("Maximum element value is %d at row/col position %d/%d\n", minMaxValues[maxIndex][MAXVAL], minMaxValues[maxIndex][MAXROW], minMaxValues[maxIndex][MAXCOL]);
+        printf("Minimum element value is %d at row/col position %d/%d\n", minMaxValues[minIndex][MINVAL], minMaxValues[minIndex][MINROW], minMaxValues[minIndex][MINCOL]);
+        printf("The total is %d\n", total);
+        printf("The execution time is %g sec\n", end_time - start_time);
+    }
+    return 0;
 }

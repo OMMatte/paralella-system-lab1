@@ -48,8 +48,7 @@ double read_timer() {
 }
 
 double start_time, end_time; /* start and end times */
-int size;  /* assume size is multiple of numWorkers */
-int nextRow = 0; /* shared bag for rows in the matrix */
+int size, stripSize;  /* assume size is multiple of numWorkers */
 int totalSum; /* total sum for the matrix */
 int minMaxValues[MINMAX_ARRAY_SIZE]; /* Storage for min and max values for the matrix */
 int matrix[MAXSIZE][MAXSIZE]; /* matrix */
@@ -75,6 +74,7 @@ int main(int argc, char *argv[]) {
     numWorkers = (argc > 2)? atoi(argv[2]) : MAXWORKERS;
     if (size > MAXSIZE) size = MAXSIZE;
     if (numWorkers > MAXWORKERS) numWorkers = MAXWORKERS;
+    stripSize = size/numWorkers;
     
     /* initialize the matrix */
     for (i = 0; i < size; i++) {
@@ -123,27 +123,24 @@ int main(int argc, char *argv[]) {
  After a barrier, worker(0) computes and prints the total */
 void *Worker(void *arg) {
     long myid = (long) arg;
-    int val, i, j;
+    int val, i, j, first, last;
     
 #ifdef DEBUG
     printf("worker %d (pthread id %d) has started\n", myid, pthread_self());
 #endif
     
-    while(true) {
-        pthread_mutex_lock(&mutex);
-        i = nextRow++;
-        pthread_mutex_unlock(&mutex);
-        if(i >= size) {
-            break;
-        }
+    /* determine first and last rows of my strip */
+    first = myid*stripSize;
+    last = (myid == numWorkers - 1) ? (size - 1) : (first + stripSize - 1);
+    
+    for (i = first; i <= last; i++)
         for (j = 0; j < size; j++) {
-            pthread_mutex_lock(&mutex);
-
             val = matrix[i][j];
+            pthread_mutex_lock(&mutex);
             totalSum += val;
             /* Update the min, max and pos. Note that can use if-else like this
-            since we initiate minVal and maxVal to the same value, there for
-            both if-statements can never be true at the same time */
+             since we initiate minVal and maxVal to the same value, there for
+             both if-statements can never be true at the same time */
             if(val < minMaxValues[MINVAL]) {
                 minMaxValues[MINVAL] = val;
                 minMaxValues[MINROW] = i;
@@ -155,7 +152,6 @@ void *Worker(void *arg) {
             }
             pthread_mutex_unlock(&mutex);
         }
-    }
     
     pthread_exit(NULL);
 }

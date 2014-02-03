@@ -12,11 +12,6 @@
 #ifndef _REENTRANT
 #define _REENTRANT
 #endif
-
-#ifndef DEBUG
-#define DEBUG
-#endif
-
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -25,6 +20,14 @@
 #include <sys/time.h>
 #define MAXSIZE 10  /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
+
+#define MINMAX_ARRAY_SIZE 6 /* look at minMaxValues */
+#define MAXVAL 0
+#define MAXROW 1
+#define MAXCOL 2
+#define MINVAL 3
+#define MINROW 4
+#define MINCOL 5
 
 pthread_mutex_t barrier;  /* mutex lock for the barrier */
 pthread_cond_t go;        /* condition variable for leaving */
@@ -60,6 +63,7 @@ double read_timer() {
 double start_time, end_time; /* start and end times */
 int size, stripSize;  /* assume size is multiple of numWorkers */
 int sums[MAXWORKERS]; /* partial sums */
+int minMaxValues[MAXWORKERS][MINMAX_ARRAY_SIZE]; /* partial min and max values. (maxVal, maxRow, maxCol, minVal, minRow, minCol) */
 int matrix[MAXSIZE][MAXSIZE]; /* matrix */
 
 void *Worker(void *);
@@ -116,7 +120,7 @@ int main(int argc, char *argv[]) {
  After a barrier, worker(0) computes and prints the total */
 void *Worker(void *arg) {
     long myid = (long) arg;
-    int total, i, j, first, last;
+    int val, total, i, j, first, last;
     
 #ifdef DEBUG
     printf("worker %d (pthread id %d) has started\n", myid, pthread_self());
@@ -128,18 +132,59 @@ void *Worker(void *arg) {
     
     /* sum values in my strip */
     total = 0;
+    
+    /* Initiating min and max values to the first value in the (sub) matrix.
+     If empty matrix than zero values */
+    bool isNotEmpty = size > 0;
+    int localMinMaxValues[MINMAX_ARRAY_SIZE]; /* maxVal, maxRow, maxCol, minVal, minRow, minCol */
+    localMinMaxValues[MAXVAL] = localMinMaxValues[MINVAL] = isNotEmpty ? matrix[first][0]: 0;
+    
+    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
+    localMinMaxValues[MAXROW] = localMinMaxValues[MAXCOL] = localMinMaxValues[MINROW] = localMinMaxValues[MINCOL] = isNotEmpty ? first : -1;
+    
     for (i = first; i <= last; i++)
-        for (j = 0; j < size; j++)
-            total += matrix[i][j];
+        for (j = 0; j < size; j++) {
+            val = matrix[i][j];
+            total += val;
+            /* Update the min, max and pos. Note that can use if-else like this
+             since we initiate minVal and maxVal to the same value, there for
+             both if-statements can never be true at the same time */
+            if(val < localMinMaxValues[MINVAL]) {
+                localMinMaxValues[MINVAL] = val;
+                localMinMaxValues[MINROW] = i;
+                localMinMaxValues[MINCOL] = j;
+            } else if(val > localMinMaxValues[MAXVAL]) {
+                localMinMaxValues[MAXVAL] = val;
+                localMinMaxValues[MAXROW] = i;
+                localMinMaxValues[MAXCOL] = j;
+            }
+        }
+    
+    /* Save the local values for min and max */
+    for(int i = 0; i < MINMAX_ARRAY_SIZE; i++) {
+        minMaxValues[myid][i] = localMinMaxValues[i];
+    }
+    
     sums[myid] = total;
     Barrier();
     if (myid == 0) {
         total = 0;
-        for (i = 0; i < numWorkers; i++)
+        int minIndex = 0;
+        int maxIndex = 0;
+        for (i = 0; i < numWorkers; i++) {
             total += sums[i];
+            if(minMaxValues[i][MAXVAL] > minMaxValues[maxIndex][MAXVAL]) {
+                maxIndex = i;
+            }
+            if(minMaxValues[i][MINVAL] < minMaxValues[minIndex][MINVAL]) {
+                minIndex = i;
+            }
+        }
         /* get end time */
         end_time = read_timer();
         /* print results */
+        printf("Maximum element value is %d at row/col position %d/%d\n", minMaxValues[maxIndex][MAXVAL], minMaxValues[maxIndex][MAXROW], minMaxValues[maxIndex][MAXCOL]);
+        printf("Minimum element value is %d at row/col position %d/%d\n", minMaxValues[minIndex][MINVAL], minMaxValues[minIndex][MINROW], minMaxValues[minIndex][MINCOL]);
         printf("The total is %d\n", total);
         printf("The execution time is %g sec\n", end_time - start_time);
     }

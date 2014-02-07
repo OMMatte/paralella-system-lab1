@@ -1,8 +1,8 @@
-/* matrix summation using pthreads
+/* compare commands for 2 files using pthreads
  
- features: uses a barrier; the Worker[0] computes
- the total sum from partial sums computed by Workers
- and prints the total sum to the standard output
+ features: 2 workers reads each file. Then a set amount
+ of workers compares the lines and the main thread prints
+ the line if they are equal.
  
  usage under Linux:
  gcc matrixSum.c -lpthread
@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
     exit(0);
 }
 
+/* a reader simply reads from a file and just fills its line vector */
 void *Reader(void *arg) {
     long fileIndex = (long)arg;
     std::ifstream& readFile = files[fileIndex];
@@ -134,9 +135,14 @@ void *Reader(void *arg) {
     pthread_exit(NULL);
 }
 
+/* a comparer compares up to slizeSize amount of lines and updates the lineStatus of those lines.
+ * the comparer will also grab slizeSize newlines when the first lines are finished and exits when
+ * it has gone past minLines of both files.
+ */
 void *Comparer(void *arg) {
     while(true){
         pthread_mutex_lock(&mutex);
+        /* we lock here since we are updating and using the global variable nextLine */
         long startLine = nextLine;
         nextLine += slizeSize;
         pthread_mutex_unlock(&mutex);
@@ -144,6 +150,7 @@ void *Comparer(void *arg) {
             break;
         }
         for(long i = startLine; i < startLine + slizeSize && i < minLines; i++) {
+            /* we compare each line and just updates the status so that the main thread can continue printing */
             if(fileLines[0][i] != fileLines[1][i]) {
                 lineStatus[i] = UNEQUAL;
             } else {

@@ -139,7 +139,8 @@ void *Worker(void *arg) {
     
     /* Initiate pos of minVal and maxVal */
     subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
-
+    
+    int subTotal = 0;
     
     while(true) {
         /* make sure to lock the thread before updating */
@@ -174,13 +175,14 @@ void *Worker(void *arg) {
     pthread_mutex_lock(&mutex);
     totalSum += subTotal;
     if(subMinMaxValues[MINVAL] < minMaxValues[MINVAL]) {
-        minMaxValues[MINVAL] = val;
-        minMaxValues[MINROW] = i;
-        minMaxValues[MINCOL] = j;
-    } else if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
-        minMaxValues[MAXVAL] = val;
-        minMaxValues[MAXROW] = i;
-        minMaxValues[MAXCOL] = j;
+        minMaxValues[MINVAL] = subMinMaxValues[MINVAL];
+        minMaxValues[MINROW] = subMinMaxValues[MINROW];
+        minMaxValues[MINCOL] = subMinMaxValues[MINCOL];
+    }
+    if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
+        minMaxValues[MAXVAL] = subMinMaxValues[MAXVAL];
+        minMaxValues[MAXROW] = subMinMaxValues[MAXROW];
+        minMaxValues[MAXCOL] = subMinMaxValues[MAXCOL];
     }
     
     /* we are done updating so we release the lock before exiting the thread */

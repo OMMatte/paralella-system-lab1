@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
-#define MAXSIZE 1000      /* maximum matrix size */
+#define MAXSIZE 10000      /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
 
 #define MINMAX_ARRAY_SIZE 6 /* look at minMaxValues */
@@ -136,12 +136,11 @@ void *Worker(void *arg) {
     subTotal = 0;
     int subMinMaxValues[MINMAX_ARRAY_SIZE];
     
-    /* Initiating min and max values to the first value in the (sub) matrix. */
-    subMinMaxValues[MAXVAL] = subMinMaxValues[MINVAL] = matrix[first][0];
+    /* Initiating min and max values to the first value in the matrix. */
+    subMinMaxValues[MAXVAL] = subMinMaxValues[MINVAL] = matrix[0][0];
     
     /* Initiate pos of minVal and maxVal*/
-    subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = first;
-    subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
+    subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
     
     for (i = first; i <= last; i++)
         for (j = 0; j < size; j++) {
@@ -165,13 +164,14 @@ void *Worker(void *arg) {
     pthread_mutex_lock(&mutex);
     totalSum += subTotal;
     if(subMinMaxValues[MINVAL] < minMaxValues[MINVAL]) {
-        minMaxValues[MINVAL] = val;
-        minMaxValues[MINROW] = i;
-        minMaxValues[MINCOL] = j;
-    } else if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
-        minMaxValues[MAXVAL] = val;
-        minMaxValues[MAXROW] = i;
-        minMaxValues[MAXCOL] = j;
+        minMaxValues[MINVAL] = subMinMaxValues[MINVAL];
+        minMaxValues[MINROW] = subMinMaxValues[MINROW];
+        minMaxValues[MINCOL] = subMinMaxValues[MINCOL];
+    }
+    if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
+        minMaxValues[MAXVAL] = subMinMaxValues[MAXVAL];
+        minMaxValues[MAXROW] = subMinMaxValues[MAXROW];
+        minMaxValues[MAXCOL] = subMinMaxValues[MAXCOL];
     }
     
     /* we are done updating so we release the lock before exiting the thread */

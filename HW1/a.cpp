@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
-#define MAXSIZE 10  /* maximum matrix size */
+#define MAXSIZE 10000  /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
 
 #define MINMAX_ARRAY_SIZE 6 /* fixed size of the array minMaxValues */
@@ -133,6 +133,8 @@ void *Worker(void *arg) {
     
     /* sum values in my strip */
     total = 0;
+    
+    int localMinMaxValues[MINMAX_ARRAY_SIZE];
     
     /* Initiating min and max values to the first value in the (sub) matrix. */
     localMinMaxValues[MAXVAL] = localMinMaxValues[MINVAL] = matrix[first][0];

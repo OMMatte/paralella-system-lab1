@@ -16,25 +16,25 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <time.h>
-#include <sys/time.h>
 #include <string>
 #include <iostream>
-#include <queue>
+#include <vector>
 #include <fstream>
 
-#define NR_COMPARERS 10
-#define UNCHECKED    0
-#define EQUAL        1
-#define UNEQUAL      2
-pthread_mutex_t mutex;    /* mutex lock for critical calculation section */
+#define NR_COMPARERS 10 /* number of threads comparing lines */
+#define UNCHECKED    0  /* represents an unchecked line */
+#define EQUAL        1  /* represents a line that is equal */
+#define UNEQUAL      2  /* represnets a line that is unequal */
 
-std::vector<std::string> fileLines[2];
-std::ifstream files[2];
-std::vector<int> lineStatus;
-long minLines;
-long nextLine = 0;
-long slizeSize = 10;
+pthread_mutex_t mutex;  /* mutex lock for critical calculation section */
+
+std::vector<std::string> fileLines[2]; /* holder for lines for both files */
+std::ifstream files[2];                /* holder for both the files */
+std::vector<int> lineStatus;           /* the current status for a line, can be UNCHECKED, EQUAL or UNEQUAL */
+
+long minLines;       /* will contain the minimum size of lines in regards to both files */
+long nextLine = 0;   /* acts as a "bag". A comparer taking new lines begins at this point */
+long slizeSize = 10; /* how many lines each comparer takes in one take */
 
 void *Comparer(void *);
 void *Reader(void *);
@@ -73,6 +73,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
+    /* try to open both files for reading */
     files[0].open(argv[2]);
     files[1].open(argv[3]);
     if (files[0].fail() || files[1].fail()) {
@@ -80,27 +81,34 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
+    /* set to work the 2 reader workers for each file */
     for(long i = 0; i < 2; i++) {
         pthread_create(&fileReaders[i], &attr, Reader, (void*)i);
     }
+    /* we wait until the readers are finished */
     for(long i = 0; i < 2; i++) {
         pthread_join(fileReaders[i], NULL);
     }
     
     minLines = std::min(fileLines[0].size(), fileLines[1].size());
+    /* initiate att line statuses to UNCHECKED */
     lineStatus.resize(minLines, UNCHECKED);
     
+    /* set the comparers in work to evaluate each line up to minLines */
     for(long i = 0; i < NR_COMPARERS; i++) {
         pthread_create(&comparers[i], &attr, Comparer, NULL);
     }
     
+    /* while the comparers are working, the main thread evaluates the lines in order
+     but only progresses if the lines have been checked. */
     while(lineCounter < minLines) {
         int status = lineStatus[lineCounter];
         if(status == UNCHECKED) {
-//            pthread_yield_np();
+            /* the line has not been checked yet, so we yield this timeslice and look again later */
+            pthread_yield_np();
         } else {
             if(status == UNEQUAL) {
-                std::cout << UNEQUAL << std::endl;
+                /* print the lines */
                 printf("(%lu): %s\n", lineCounter + 1, fileLines[0][lineCounter].c_str());
                 printf("(%lu): %s\n", lineCounter + 1, fileLines[1][lineCounter].c_str());
             }
@@ -108,6 +116,7 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    /* we print each line of the longest file, beginning at minLines. */
     std::vector<std::string> longestFileLines (fileLines[0].size() > fileLines[1].size() ? fileLines[0] : fileLines[1]);
     for( ; lineCounter < longestFileLines.size(); lineCounter++){
         printf("(%lu): %s\n", lineCounter + 1, longestFileLines[lineCounter].c_str());

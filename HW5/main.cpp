@@ -41,7 +41,7 @@ void *Reader(void *);
 
 /* read command line, initialize, and create threads */
 int main(int argc, char *argv[]) {
-    long minLines, lineCounter = 0;
+    long lineCounter = 0;
     std::string line;
     std::string command;
     
@@ -94,13 +94,13 @@ int main(int argc, char *argv[]) {
         pthread_create(&comparers[i], &attr, Comparer, NULL);
     }
     
-    
     while(lineCounter < minLines) {
         int status = lineStatus[lineCounter];
         if(status == UNCHECKED) {
 //            pthread_yield_np();
         } else {
             if(status == UNEQUAL) {
+                std::cout << UNEQUAL << std::endl;
                 printf("(%lu): %s\n", lineCounter + 1, fileLines[0][lineCounter].c_str());
                 printf("(%lu): %s\n", lineCounter + 1, fileLines[1][lineCounter].c_str());
             }
@@ -110,13 +110,11 @@ int main(int argc, char *argv[]) {
     
     std::vector<std::string> longestFileLines (fileLines[0].size() > fileLines[1].size() ? fileLines[0] : fileLines[1]);
     for( ; lineCounter < longestFileLines.size(); lineCounter++){
-        printf("(%lu): %s\n", lineCounter + 1, fileLines[0][lineCounter].c_str());
+        printf("(%lu): %s\n", lineCounter + 1, longestFileLines[lineCounter].c_str());
     }
     exit(0);
 }
 
-/* Each worker sums the values in one strip of the matrix.
- After a barrier, worker(0) computes and prints the total */
 void *Reader(void *arg) {
     long fileIndex = (long)arg;
     std::ifstream& readFile = files[fileIndex];
@@ -137,7 +135,7 @@ void *Comparer(void *arg) {
             break;
         }
         for(long i = startLine; i < startLine + slizeSize && i < minLines; i++) {
-            if(fileLines[0] != fileLines[1]) {
+            if(fileLines[0][i] != fileLines[1][i]) {
                 lineStatus[i] = UNEQUAL;
             } else {
                 lineStatus[i] = EQUAL;

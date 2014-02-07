@@ -1,8 +1,6 @@
-/* matrix summation using pthreads
- 
- features: uses a barrier; the Worker[0] computes
- the total sum from partial sums computed by Workers
- and prints the total sum to the standard output
+/*
+ features: reads from standard input and prints
+ to standard output and to the given file
  
  usage under Linux:
  gcc matrixSum.c -lpthread
@@ -16,11 +14,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <time.h>
-#include <sys/time.h>
 #include <string>
 #include <iostream>
-#include <queue>
+#include <vector>
 
 #define EXIT    "exit"
 
@@ -100,8 +96,6 @@ int main(int argc, char *argv[]) {
     exit(0);
 }
 
-/* Each worker sums the values in one strip of the matrix.
- After a barrier, worker(0) computes and prints the total */
 void *Writer(void *arg) {
     FILE* f = (FILE*) arg;
     std::string line;

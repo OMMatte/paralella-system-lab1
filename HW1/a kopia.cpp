@@ -1,8 +1,7 @@
 /* matrix summation using pthreads
  
  features: uses a barrier; the Worker[0] computes
- the total sum, minumum element value and maxmimum
- element value from partial values computed by Workers
+ the total sum from partial sums computed by Workers
  and prints the total sum to the standard output
  
  usage under Linux:

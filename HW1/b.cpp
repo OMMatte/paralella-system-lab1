@@ -1,8 +1,9 @@
 /* matrix summation using pthreads
  
- features: uses a barrier; the Worker[0] computes
- the total sum from partial sums computed by Workers
- and prints the total sum to the standard output
+ features: the workers computes and updates the
+ total sum, minimum element value and maximum
+ element value and the main thread prints this
+ info to the standard output
  
  usage under Linux:
  gcc matrixSum.c -lpthread
@@ -94,18 +95,17 @@ int main(int argc, char *argv[]) {
     }
 #endif
     
-    /* Initiating min and max values to the first value in the matrix.
-     If empty matrix than zero values */
-    bool isNotEmpty = size > 0;
-    minMaxValues[MAXVAL] = minMaxValues[MINVAL] = isNotEmpty ? matrix[0][0]: 0;
+    /* Initiating min and max values to the first value in the matrix */
+    minMaxValues[MAXVAL] = minMaxValues[MINVAL] = matrix[0][0];
     
-    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
-    minMaxValues[MAXROW] = minMaxValues[MAXCOL] = minMaxValues[MINROW] = minMaxValues[MINCOL] = isNotEmpty ? 0 : -1;
+    /* Initiate pos of minVal and maxVal */
+    minMaxValues[MAXROW] = minMaxValues[MAXCOL] = minMaxValues[MINROW] = minMaxValues[MINCOL] = 0;
     
     /* do the parallel work: create the workers */
     start_time = read_timer();
     for (l = 0; l < numWorkers; l++)
         pthread_create(&workerid[l], &attr, Worker, (void *) l);
+    /* the main thread has to wait until the other therads are finished */
     for (l = 0; l < numWorkers; l++)
         pthread_join (workerid[l], NULL);
     
@@ -136,12 +136,10 @@ void *Worker(void *arg) {
     subTotal = 0;
     int subMinMaxValues[MINMAX_ARRAY_SIZE];
     
-    /* Initiating min and max values to the first value in the matrix.
-     If empty matrix than zero values */
-    bool isNotEmpty = size > 0;
+    /* Initiating min and max values to the first value in the (sub) matrix. */
     subMinMaxValues[MAXVAL] = subMinMaxValues[MINVAL] = matrix[first][0];
     
-    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
+    /* Initiate pos of minVal and maxVal*/
     subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = first;
     subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
     
@@ -163,6 +161,7 @@ void *Worker(void *arg) {
             }
         }
     
+    /* we lock here since we now have to update the global variables with this threads results */
     pthread_mutex_lock(&mutex);
     totalSum += subTotal;
     if(subMinMaxValues[MINVAL] < minMaxValues[MINVAL]) {
@@ -175,6 +174,7 @@ void *Worker(void *arg) {
         minMaxValues[MAXCOL] = j;
     }
     
+    /* we are done updating so we release the lock before exiting the thread */
     pthread_mutex_unlock(&mutex);
     
     pthread_exit(NULL);

@@ -1,0 +1,10 @@
+
+Computes and prints the sum of a equally sized matrix.
+Also the position and size of the both the maximum value and the lowest value is printed.
+The values are randomly selected between 0-99.
+Usage: 
+
+matrix computation using pthreads
+ 
+
+ 

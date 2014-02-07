@@ -21,7 +21,7 @@
 #define MAXSIZE 10  /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
 
-#define MINMAX_ARRAY_SIZE 6 /* look at minMaxValues */
+#define MINMAX_ARRAY_SIZE 6 /* fixed size of the array minMaxValues */
 #define MAXVAL 0
 #define MAXROW 1
 #define MAXCOL 2
@@ -63,7 +63,7 @@ double read_timer() {
 double start_time, end_time; /* start and end times */
 int size, stripSize;  /* assume size is multiple of numWorkers */
 int sums[MAXWORKERS]; /* partial sums */
-int minMaxValues[MAXWORKERS][MINMAX_ARRAY_SIZE]; /* partial min and max values. (maxVal, maxRow, maxCol, minVal, minRow, minCol) */
+int minMaxValues[MAXWORKERS][MINMAX_ARRAY_SIZE]; /* partial min and max values. (MAXVAL, MAXROW, MAXCOL, MINVAL, MINROW, MINCOL) */
 int matrix[MAXSIZE][MAXSIZE]; /* matrix */
 
 void *Worker(void *);
@@ -133,14 +133,12 @@ void *Worker(void *arg) {
     /* sum values in my strip */
     total = 0;
     
-    /* Initiating min and max values to the first value in the (sub) matrix.
-     If empty matrix than zero values */
-    bool isNotEmpty = size > 0;
-    int localMinMaxValues[MINMAX_ARRAY_SIZE]; /* maxVal, maxRow, maxCol, minVal, minRow, minCol */
-    localMinMaxValues[MAXVAL] = localMinMaxValues[MINVAL] = isNotEmpty ? matrix[first][0]: 0;
+    /* Initiating min and max values to the first value in the (sub) matrix. */
+    localMinMaxValues[MAXVAL] = localMinMaxValues[MINVAL] = matrix[first][0];
     
-    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
-    localMinMaxValues[MAXROW] = localMinMaxValues[MAXCOL] = localMinMaxValues[MINROW] = localMinMaxValues[MINCOL] = isNotEmpty ? first : -1;
+    /* Initiate pos of minVal and maxVal */
+    localMinMaxValues[MAXROW] = localMinMaxValues[MINROW] = first;
+    localMinMaxValues[MAXCOL] = localMinMaxValues[MINCOL] = 0;
     
     for (i = first; i <= last; i++)
         for (j = 0; j < size; j++) {
@@ -171,6 +169,7 @@ void *Worker(void *arg) {
         total = 0;
         int minIndex = 0;
         int maxIndex = 0;
+        /* find the index for lowest min and highest max within the partial variables */
         for (i = 0; i < numWorkers; i++) {
             total += sums[i];
             if(minMaxValues[i][MAXVAL] > minMaxValues[maxIndex][MAXVAL]) {

@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
-#define MAXSIZE 10      /* maximum matrix size */
+#define MAXSIZE 1000      /* maximum matrix size */
 #define MAXWORKERS 10   /* maximum number of workers */
 
 #define MINMAX_ARRAY_SIZE 6 /* look at minMaxValues */
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
  After a barrier, worker(0) computes and prints the total */
 void *Worker(void *arg) {
     long myid = (long) arg;
-    int val, i, j, first, last;
+    int val, i, j, first, last, subTotal;
     
 #ifdef DEBUG
     printf("worker %d (pthread id %d) has started\n", myid, pthread_self());
@@ -133,25 +133,49 @@ void *Worker(void *arg) {
     first = myid*stripSize;
     last = (myid == numWorkers - 1) ? (size - 1) : (first + stripSize - 1);
     
+    subTotal = 0;
+    int subMinMaxValues[MINMAX_ARRAY_SIZE];
+    
+    /* Initiating min and max values to the first value in the matrix.
+     If empty matrix than zero values */
+    bool isNotEmpty = size > 0;
+    subMinMaxValues[MAXVAL] = subMinMaxValues[MINVAL] = matrix[first][0];
+    
+    /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
+    subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = first;
+    subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
+    
     for (i = first; i <= last; i++)
         for (j = 0; j < size; j++) {
             val = matrix[i][j];
-            pthread_mutex_lock(&mutex);
-            totalSum += val;
+            subTotal += val;
             /* Update the min, max and pos. Note that can use if-else like this
              since we initiate minVal and maxVal to the same value, there for
              both if-statements can never be true at the same time */
-            if(val < minMaxValues[MINVAL]) {
-                minMaxValues[MINVAL] = val;
-                minMaxValues[MINROW] = i;
-                minMaxValues[MINCOL] = j;
-            } else if(val > minMaxValues[MAXVAL]) {
-                minMaxValues[MAXVAL] = val;
-                minMaxValues[MAXROW] = i;
-                minMaxValues[MAXCOL] = j;
+            if(val < subMinMaxValues[MINVAL]) {
+                subMinMaxValues[MINVAL] = val;
+                subMinMaxValues[MINROW] = i;
+                subMinMaxValues[MINCOL] = j;
+            } else if(val > subMinMaxValues[MAXVAL]) {
+                subMinMaxValues[MAXVAL] = val;
+                subMinMaxValues[MAXROW] = i;
+                subMinMaxValues[MAXCOL] = j;
             }
-            pthread_mutex_unlock(&mutex);
         }
+    
+    pthread_mutex_lock(&mutex);
+    totalSum += subTotal;
+    if(subMinMaxValues[MINVAL] < minMaxValues[MINVAL]) {
+        minMaxValues[MINVAL] = val;
+        minMaxValues[MINROW] = i;
+        minMaxValues[MINCOL] = j;
+    } else if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
+        minMaxValues[MAXVAL] = val;
+        minMaxValues[MAXROW] = i;
+        minMaxValues[MAXCOL] = j;
+    }
+    
+    pthread_mutex_unlock(&mutex);
     
     pthread_exit(NULL);
 }

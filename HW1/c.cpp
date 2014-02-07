@@ -1,8 +1,10 @@
 /* matrix summation using pthreads
  
- features: uses a barrier; the Worker[0] computes
- the total sum from partial sums computed by Workers
- and prints the total sum to the standard output
+ features: the workers computes and updates the
+ total sum, minimum element value and maximum
+ element value and the main thread prints this
+ info to the standard output
+ 
  
  usage under Linux:
  gcc matrixSum.c -lpthread
@@ -97,10 +99,10 @@ int main(int argc, char *argv[]) {
     /* Initiating min and max values to the first value in the matrix.
      If empty matrix than zero values */
     bool isNotEmpty = size > 0;
-    minMaxValues[MAXVAL] = minMaxValues[MINVAL] = isNotEmpty ? matrix[0][0]: 0;
+    minMaxValues[MAXVAL] = minMaxValues[MINVAL] = matrix[0][0];
     
     /* Initiate pos of minVal and maxVal. Set pos -1  if matrix is empty */
-    minMaxValues[MAXROW] = minMaxValues[MAXCOL] = minMaxValues[MINROW] = minMaxValues[MINCOL] = isNotEmpty ? 0 : -1;
+    minMaxValues[MAXROW] = minMaxValues[MAXCOL] = minMaxValues[MINROW] = minMaxValues[MINCOL] = 0;
     
     /* do the parallel work: create the workers */
     start_time = read_timer();
@@ -130,40 +132,58 @@ void *Worker(void *arg) {
     printf("worker %d (pthread id %d) has started\n", myid, pthread_self());
 #endif
     
-    /* note that for time efficiency it would be benificial to use mutex lock on one
-     row at a time instead of one element at a time because of overhead. However I 
-     avoid doing this in this exercise just to be clear on what the critical code is */
+    int subMinMaxValues[MINMAX_ARRAY_SIZE];
+    
+    /* Initiating min and max values to the first value in the matrix. */
+    subMinMaxValues[MAXVAL] = subMinMaxValues[MINVAL] = matrix[0][0];
+    
+    /* Initiate pos of minVal and maxVal */
+    subMinMaxValues[MAXROW] = subMinMaxValues[MINROW] = subMinMaxValues[MAXCOL] = subMinMaxValues[MINCOL] = 0;
+
+    
     while(true) {
         /* make sure to lock the thread before updating */
         pthread_mutex_lock(&mutex);
+        /* take a new row from the "bag" */
         i = nextRow++;
         pthread_mutex_unlock(&mutex);
         if(i >= size) {
-            // make sure to abort if we passed the last row
+            /* make sure to abort if we passed the last row */
             break;
         }
+        
         for (j = 0; j < size; j++) {
             val = matrix[i][j];
-            /* lock since we are entering a critical section */
-            pthread_mutex_lock(&mutex);
-
-            totalSum += val;
+            subTotal += val;
             /* Update the min, max and pos. Note that can use if-else like this
-            since we initiate minVal and maxVal to the same value, there for
-            both if-statements can never be true at the same time */
-            if(val < minMaxValues[MINVAL]) {
-                minMaxValues[MINVAL] = val;
-                minMaxValues[MINROW] = i;
-                minMaxValues[MINCOL] = j;
-            } else if(val > minMaxValues[MAXVAL]) {
-                minMaxValues[MAXVAL] = val;
-                minMaxValues[MAXROW] = i;
-                minMaxValues[MAXCOL] = j;
+             since we initiate minVal and maxVal to the same value, there for
+             both if-statements can never be true at the same time */
+            if(val < subMinMaxValues[MINVAL]) {
+                subMinMaxValues[MINVAL] = val;
+                subMinMaxValues[MINROW] = i;
+                subMinMaxValues[MINCOL] = j;
+            } else if(val > subMinMaxValues[MAXVAL]) {
+                subMinMaxValues[MAXVAL] = val;
+                subMinMaxValues[MAXROW] = i;
+                subMinMaxValues[MAXCOL] = j;
             }
-            /* critical section ended */
-            pthread_mutex_unlock(&mutex);
         }
     }
     
+    /* we lock here since we now have to update the global variables with this threads results */
+    pthread_mutex_lock(&mutex);
+    totalSum += subTotal;
+    if(subMinMaxValues[MINVAL] < minMaxValues[MINVAL]) {
+        minMaxValues[MINVAL] = val;
+        minMaxValues[MINROW] = i;
+        minMaxValues[MINCOL] = j;
+    } else if(subMinMaxValues[MAXVAL] > minMaxValues[MAXVAL]) {
+        minMaxValues[MAXVAL] = val;
+        minMaxValues[MAXROW] = i;
+        minMaxValues[MAXCOL] = j;
+    }
+    
+    /* we are done updating so we release the lock before exiting the thread */
+    pthread_mutex_unlock(&mutex);
     pthread_exit(NULL);
 }

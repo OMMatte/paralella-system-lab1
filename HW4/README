@@ -1,0 +1,11 @@
+
+Simple printer from standard input to standard output and given file, using the command 'tee'. Write 'exit' to exit.
+
+write 'make' to build
+
+Usage: tee FILE
+
+
+ 
+
+ 

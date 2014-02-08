@@ -1,0 +1,11 @@
+Application diff
+Takes 2 files as input and prints 2 lines for each file if they differ. Also prints all excess lines if one file is bigger. Each line is numbered and the first line is FILE1 and the second line printed is for FILE2.  
+
+write 'make' to build
+
+Usage: diff FILE1 FILE2
+
+
+ 
+
+ 

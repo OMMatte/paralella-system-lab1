@@ -5,8 +5,8 @@
  the line if they are equal.
  
  usage under Linux:
- gcc matrixSum.c -lpthread
- a.out size numWorkers
+ g++ diff.c -lpthread
+ diff FILE FILE
  
  */
 #ifndef _REENTRANT
@@ -57,27 +57,17 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&mutex, NULL);
     
     /* read command line args */
-    if(argc < 2) {
-        fprintf(stderr, "You did not write any command.\n");
-        return 0;
-    }
 
-    command = argv[1];
-    if(command != "diff" ) {
-        fprintf(stderr, "Only command 'diff' exist.\n");
-        exit(1);
-    }
-
-    if(argc != 4) {
+    if(argc != 3) {
         fprintf(stderr, "Usage: diff FILENAME FILENAME\n");
         exit(1);
     }
     
     /* try to open both files for reading */
-    files[0].open(argv[2]);
-    files[1].open(argv[3]);
+    files[0].open(argv[1]);
+    files[1].open(argv[2]);
     if (files[0].fail() || files[1].fail()) {
-        fprintf(stderr, "Failed to open file: %s for reading!\n", (files[0].fail()) ? argv[2] : argv[3]);
+        fprintf(stderr, "Failed to open file: %s for reading!\n", (files[0].fail()) ? argv[1] : argv[2]);
         exit(1);
     }
     

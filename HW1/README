@@ -1,10 +1,18 @@
 
+Matrix computation using pthreads.
 Computes and prints the sum of a equally sized matrix.
-Also the position and size of the both the maximum value and the lowest value is printed.
+Also the position and size of the both the maximum value and the lowest value are printed.
 The values are randomly selected between 0-99.
-Usage: 
+The makefile produces 3 versions of the matrix application. Named a, b and c representing the assignments 1:a, 1:b and 1:c.
+Standard and maximum value for MATRIX_SIZE is 10000. Minimum value is 1.
+Standard value for NR_THREADS is 10.
 
-matrix computation using pthreads
+write 'make' to build
+
+Usage: x [MATRIX_SIZE] [NR_THREADS]
+where x is a, b or c.
+
+
  
 
  

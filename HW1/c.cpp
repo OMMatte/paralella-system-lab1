@@ -7,8 +7,8 @@
  
  
  usage under Linux:
- gcc matrixSum.c -lpthread
- a.out size numWorkers
+ gcc c.c -lpthread
+ c [size] [numWorkers]
  
  */
 #ifndef _REENTRANT
